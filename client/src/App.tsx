@@ -7,6 +7,7 @@ import RoomSelectionDialog from './components/RoomSelectionDialog'
 import LoginDialog from './components/LoginDialog'
 import ComputerDialog from './components/ComputerDialog'
 import WhiteboardDialog from './components/WhiteboardDialog'
+import MeetingRoomDialog from './components/MeetingRoomDialog'
 import VideoConnectionDialog from './components/VideoConnectionDialog'
 import Chat from './components/Chat'
 import HelperButtonGroup from './components/HelperButtonGroup'
@@ -22,6 +23,7 @@ function App() {
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
   const computerDialogOpen = useAppSelector((state) => state.computer.computerDialogOpen)
   const whiteboardDialogOpen = useAppSelector((state) => state.whiteboard.whiteboardDialogOpen)
+  const meetingRoomDialogOpen = useAppSelector((state) => state.meetingRoom.meetingRoomDialogOpen)
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
 
@@ -33,6 +35,9 @@ function App() {
     } else if (whiteboardDialogOpen) {
       /* Render WhiteboardDialog if user is using a whiteboard. */
       ui = <WhiteboardDialog />
+    } else if (meetingRoomDialogOpen) {
+      /* Render MeetingRoomDialog if user is in a meeting room. */
+      ui = <MeetingRoomDialog />
     } else {
       ui = (
         /* Render Chat or VideoConnectionDialog if no dialogs are opened. */
@@ -56,7 +61,7 @@ function App() {
     <Backdrop>
       {ui}
       {/* Render HelperButtonGroup if no dialogs are opened. */}
-      {!computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
+      {!computerDialogOpen && !whiteboardDialogOpen && !meetingRoomDialogOpen && <HelperButtonGroup />}
     </Backdrop>
   )
 }

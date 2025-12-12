@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
-import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
+import { Player, OfficeState, Computer, Whiteboard, MeetingRoom } from './schema/OfficeState'
 import { Message } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
@@ -47,6 +47,11 @@ export class SkyOffice extends Room<OfficeState> {
     // HARD-CODED: Add 3 whiteboards in a room
     for (let i = 0; i < 3; i++) {
       this.state.whiteboards.set(String(i), new Whiteboard())
+    }
+
+    // HARD-CODED: Add 2 meeting rooms
+    for (let i = 0; i < 2; i++) {
+      this.state.meetingRooms.set(String(i), new MeetingRoom())
     }
 
     // when a player connect to a computer, add to the computer connectedUser array
@@ -153,6 +158,148 @@ export class SkyOffice extends Room<OfficeState> {
         { except: client }
       )
     })
+
+    // Meeting Room Handlers
+    // when a player joins a meeting room
+    this.onMessage(Message.JOIN_MEETING_ROOM, (client, message: { meetingRoomId: string }) => {
+      const meetingRoom = this.state.meetingRooms.get(message.meetingRoomId)
+      if (meetingRoom && !meetingRoom.attendees.has(client.sessionId)) {
+        meetingRoom.attendees.add(client.sessionId)
+        // If there's an active presenter, notify the new attendee
+        if (meetingRoom.isActive && meetingRoom.presenterId) {
+          client.send(Message.START_PRESENTATION, {
+            meetingRoomId: message.meetingRoomId,
+            presenterId: meetingRoom.presenterId,
+          })
+        }
+      }
+    })
+
+    // when a player leaves a meeting room
+    this.onMessage(Message.LEAVE_MEETING_ROOM, (client, message: { meetingRoomId: string }) => {
+      const meetingRoom = this.state.meetingRooms.get(message.meetingRoomId)
+      if (meetingRoom) {
+        meetingRoom.attendees.delete(client.sessionId)
+        // If the presenter leaves, stop the presentation
+        if (meetingRoom.presenterId === client.sessionId) {
+          meetingRoom.presenterId = ''
+          meetingRoom.isActive = false
+          // Notify all attendees that presentation stopped
+          meetingRoom.attendees.forEach((attendeeId) => {
+            this.clients.forEach((cli) => {
+              if (cli.sessionId === attendeeId) {
+                cli.send(Message.STOP_PRESENTATION, { meetingRoomId: message.meetingRoomId })
+              }
+            })
+          })
+        }
+      }
+    })
+
+    // when a player starts a presentation
+    this.onMessage(Message.START_PRESENTATION, (client, message: { meetingRoomId: string }) => {
+      const meetingRoom = this.state.meetingRooms.get(message.meetingRoomId)
+      if (meetingRoom && !meetingRoom.isActive) {
+        meetingRoom.presenterId = client.sessionId
+        meetingRoom.isActive = true
+        
+        // Get list of all attendee IDs to send to presenter
+        const attendeeIds: string[] = []
+        meetingRoom.attendees.forEach((attendeeId) => {
+          if (attendeeId !== client.sessionId) {
+            attendeeIds.push(attendeeId)
+          }
+        })
+        
+        // Send attendee list back to presenter so they can call everyone
+        client.send(Message.START_PRESENTATION, {
+          meetingRoomId: message.meetingRoomId,
+          presenterId: client.sessionId,
+          attendees: attendeeIds,
+        })
+        
+        // Notify all attendees about the new presenter
+        meetingRoom.attendees.forEach((attendeeId) => {
+          if (attendeeId !== client.sessionId) {
+            this.clients.forEach((cli) => {
+              if (cli.sessionId === attendeeId) {
+                cli.send(Message.START_PRESENTATION, {
+                  meetingRoomId: message.meetingRoomId,
+                  presenterId: client.sessionId,
+                })
+              }
+            })
+          }
+        })
+      }
+    })
+
+    // when a presenter stops presenting
+    this.onMessage(Message.STOP_PRESENTATION, (client, message: { meetingRoomId: string }) => {
+      const meetingRoom = this.state.meetingRooms.get(message.meetingRoomId)
+      if (meetingRoom && meetingRoom.presenterId === client.sessionId) {
+        meetingRoom.presenterId = ''
+        meetingRoom.isActive = false
+        // Notify all attendees that presentation stopped
+        meetingRoom.attendees.forEach((attendeeId) => {
+          if (attendeeId !== client.sessionId) {
+            this.clients.forEach((cli) => {
+              if (cli.sessionId === attendeeId) {
+                cli.send(Message.STOP_PRESENTATION, { meetingRoomId: message.meetingRoomId })
+              }
+            })
+          }
+        })
+      }
+    })
+
+    // WebRTC signaling for presentation - forward offer from presenter to attendee
+    this.onMessage(
+      Message.PRESENTER_OFFER,
+      (client, message: { meetingRoomId: string; targetId: string; offer: any }) => {
+        this.clients.forEach((cli) => {
+          if (cli.sessionId === message.targetId) {
+            cli.send(Message.PRESENTER_OFFER, {
+              meetingRoomId: message.meetingRoomId,
+              presenterId: client.sessionId,
+              offer: message.offer,
+            })
+          }
+        })
+      }
+    )
+
+    // WebRTC signaling for presentation - forward answer from attendee to presenter
+    this.onMessage(
+      Message.PRESENTER_ANSWER,
+      (client, message: { meetingRoomId: string; presenterId: string; answer: any }) => {
+        this.clients.forEach((cli) => {
+          if (cli.sessionId === message.presenterId) {
+            cli.send(Message.PRESENTER_ANSWER, {
+              meetingRoomId: message.meetingRoomId,
+              attendeeId: client.sessionId,
+              answer: message.answer,
+            })
+          }
+        })
+      }
+    )
+
+    // WebRTC signaling for presentation - forward ICE candidates
+    this.onMessage(
+      Message.PRESENTER_ICE_CANDIDATE,
+      (client, message: { meetingRoomId: string; targetId: string; candidate: any }) => {
+        this.clients.forEach((cli) => {
+          if (cli.sessionId === message.targetId) {
+            cli.send(Message.PRESENTER_ICE_CANDIDATE, {
+              meetingRoomId: message.meetingRoomId,
+              senderId: client.sessionId,
+              candidate: message.candidate,
+            })
+          }
+        })
+      }
+    )
   }
 
   async onAuth(client: Client, options: { password: string | null }) {
@@ -186,6 +333,25 @@ export class SkyOffice extends Room<OfficeState> {
     this.state.whiteboards.forEach((whiteboard) => {
       if (whiteboard.connectedUser.has(client.sessionId)) {
         whiteboard.connectedUser.delete(client.sessionId)
+      }
+    })
+    // Clean up meeting room state
+    this.state.meetingRooms.forEach((meetingRoom, meetingRoomId) => {
+      if (meetingRoom.attendees.has(client.sessionId)) {
+        meetingRoom.attendees.delete(client.sessionId)
+      }
+      // If the presenter leaves, stop the presentation
+      if (meetingRoom.presenterId === client.sessionId) {
+        meetingRoom.presenterId = ''
+        meetingRoom.isActive = false
+        // Notify all attendees that presentation stopped
+        meetingRoom.attendees.forEach((attendeeId) => {
+          this.clients.forEach((cli) => {
+            if (cli.sessionId === attendeeId) {
+              cli.send(Message.STOP_PRESENTATION, { meetingRoomId })
+            }
+          })
+        })
       }
     })
   }

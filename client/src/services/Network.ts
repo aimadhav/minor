@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import { IComputer, IOfficeState, IPlayer, IWhiteboard, IMeetingRoom } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
@@ -20,6 +20,11 @@ import {
   pushPlayerLeftMessage,
 } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
+import {
+  presentationStarted,
+  presentationStopped,
+  setAttendeeCount,
+} from '../stores/MeetingRoomStore'
 
 export default class Network {
   private client: Client
@@ -30,11 +35,8 @@ export default class Network {
   mySessionId!: string
 
   constructor() {
-    const protocol = window.location.protocol.replace('http', 'ws')
-    const endpoint =
-      process.env.NODE_ENV === 'production'
-        ? import.meta.env.VITE_SERVER_URL
-        : `${protocol}//${window.location.hostname}:2567`
+    // Force endpoint to use the server's IPv4 address directly
+    const endpoint = 'ws://192.168.0.100:3005'; // <-- Replace with your server's actual IPv4 if different
     this.client = new Client(endpoint)
     this.joinLobbyRoom().then(() => {
       store.dispatch(setLobbyJoined(true))
@@ -180,6 +182,58 @@ export default class Network {
       const computerState = store.getState().computer
       computerState.shareScreenManager?.onUserLeft(clientId)
     })
+
+    // Meeting Room message handlers
+    // when a presentation starts
+    this.room.onMessage(
+      Message.START_PRESENTATION,
+      (data: { meetingRoomId: string; presenterId: string; attendees?: string[] }) => {
+        store.dispatch(presentationStarted({ presenterId: data.presenterId }))
+        phaserEvents.emit(Event.PRESENTATION_STARTED, data.meetingRoomId, data.presenterId, data.attendees)
+      }
+    )
+
+    // when a presentation stops
+    this.room.onMessage(Message.STOP_PRESENTATION, (data: { meetingRoomId: string }) => {
+      store.dispatch(presentationStopped())
+      phaserEvents.emit(Event.PRESENTATION_STOPPED, data.meetingRoomId)
+    })
+
+    // WebRTC signaling - receive offer from presenter
+    this.room.onMessage(
+      Message.PRESENTER_OFFER,
+      (data: { meetingRoomId: string; presenterId: string; offer: any }) => {
+        phaserEvents.emit(Event.PRESENTER_OFFER_RECEIVED, data)
+      }
+    )
+
+    // WebRTC signaling - receive answer from attendee
+    this.room.onMessage(
+      Message.PRESENTER_ANSWER,
+      (data: { meetingRoomId: string; attendeeId: string; answer: any }) => {
+        phaserEvents.emit(Event.PRESENTER_ANSWER_RECEIVED, data)
+      }
+    )
+
+    // WebRTC signaling - receive ICE candidate
+    this.room.onMessage(
+      Message.PRESENTER_ICE_CANDIDATE,
+      (data: { meetingRoomId: string; senderId: string; candidate: any }) => {
+        phaserEvents.emit(Event.PRESENTER_ICE_CANDIDATE_RECEIVED, data)
+      }
+    )
+
+    // Track meeting room attendees
+    this.room.state.meetingRooms.onAdd = (meetingRoom: IMeetingRoom, key: string) => {
+      meetingRoom.attendees.onAdd = () => {
+        store.dispatch(setAttendeeCount(meetingRoom.attendees.size))
+        phaserEvents.emit(Event.MEETING_ROOM_ATTENDEE_ADDED, key)
+      }
+      meetingRoom.attendees.onRemove = () => {
+        store.dispatch(setAttendeeCount(meetingRoom.attendees.size))
+        phaserEvents.emit(Event.MEETING_ROOM_ATTENDEE_REMOVED, key)
+      }
+    }
   }
 
   // method to register event listener and call back function when a item user added
@@ -281,5 +335,34 @@ export default class Network {
 
   addChatMessage(content: string) {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content: content })
+  }
+
+  // Meeting Room methods
+  joinMeetingRoom(meetingRoomId: string) {
+    this.room?.send(Message.JOIN_MEETING_ROOM, { meetingRoomId })
+  }
+
+  leaveMeetingRoom(meetingRoomId: string) {
+    this.room?.send(Message.LEAVE_MEETING_ROOM, { meetingRoomId })
+  }
+
+  startPresentation(meetingRoomId: string) {
+    this.room?.send(Message.START_PRESENTATION, { meetingRoomId })
+  }
+
+  stopPresentation(meetingRoomId: string) {
+    this.room?.send(Message.STOP_PRESENTATION, { meetingRoomId })
+  }
+
+  sendPresenterOffer(meetingRoomId: string, targetId: string, offer: any) {
+    this.room?.send(Message.PRESENTER_OFFER, { meetingRoomId, targetId, offer })
+  }
+
+  sendPresenterAnswer(meetingRoomId: string, presenterId: string, answer: any) {
+    this.room?.send(Message.PRESENTER_ANSWER, { meetingRoomId, presenterId, answer })
+  }
+
+  sendPresenterIceCandidate(meetingRoomId: string, targetId: string, candidate: any) {
+    this.room?.send(Message.PRESENTER_ICE_CANDIDATE, { meetingRoomId, targetId, candidate })
   }
 }

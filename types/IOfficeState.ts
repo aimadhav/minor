@@ -24,9 +24,16 @@ export interface IChatMessage extends Schema {
   content: string
 }
 
+export interface IMeetingRoom extends Schema {
+  presenterId: string
+  attendees: SetSchema<string>
+  isActive: boolean
+}
+
 export interface IOfficeState extends Schema {
   players: MapSchema<IPlayer>
   computers: MapSchema<IComputer>
   whiteboards: MapSchema<IWhiteboard>
   chatMessages: ArraySchema<IChatMessage>
+  meetingRooms: MapSchema<IMeetingRoom>
 }

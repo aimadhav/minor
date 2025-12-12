@@ -8,6 +8,7 @@ import Chair from '../items/Chair'
 import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
 import VendingMachine from '../items/VendingMachine'
+import MeetingRoom from '../items/MeetingRoom'
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
@@ -34,6 +35,8 @@ export default class Game extends Phaser.Scene {
   private otherPlayerMap = new Map<string, OtherPlayer>()
   computerMap = new Map<string, Computer>()
   private whiteboardMap = new Map<string, Whiteboard>()
+  meetingRoomItems = new Map<string, MeetingRoom>()
+  private lastLogTime = 0
 
   constructor() {
     super('game')
@@ -128,6 +131,43 @@ export default class Game extends Phaser.Scene {
       this.addObjectFromTiled(vendingMachines, obj, 'vendingmachines', 'vendingmachine')
     })
 
+    // import meeting room objects from Tiled map to Phaser (if layer exists)
+    const meetingRooms = this.physics.add.staticGroup({ classType: MeetingRoom })
+    const meetingRoomLayer = this.map.getObjectLayer('MeetingRoom')
+    if (meetingRoomLayer) {
+      meetingRoomLayer.objects.forEach((obj, i) => {
+        const item = this.addObjectFromTiled(
+          meetingRooms,
+          obj,
+          'generic',
+          'Generic'
+        ) as MeetingRoom
+        const id = `${i}`
+        item.id = id
+        this.meetingRoomItems.set(id, item)
+      })
+    } else {
+      // Create fallback meeting room zones if no MeetingRoom layer exists
+      // Place meeting room zone covering the entire conference room area
+      // Coordinates: top-left (200, 530) to bottom-right (600, 744)
+      const meetingRoomPositions = [
+        { x: 400, y: 637, width: 400, height: 220 },  // Full conference room area
+      ]
+      meetingRoomPositions.forEach((pos, i) => {
+        const meetingRoom = new MeetingRoom(this, pos.x, pos.y, 'generic', 0)
+        meetingRoom.setAlpha(0) // Invisible - the room itself serves as visual
+        meetingRooms.add(meetingRoom)
+        // Set physics body size after adding to group (body is created when added to physics group)
+        if (meetingRoom.body) {
+          meetingRoom.body.setSize(pos.width, pos.height)
+          meetingRoom.body.setOffset(-pos.width / 2, -pos.height / 2)
+        }
+        const id = `${i}`
+        meetingRoom.id = id
+        this.meetingRoomItems.set(id, meetingRoom)
+      })
+    }
+
     // import other objects from Tiled map to Phaser
     this.addGroupFromTiled('Wall', 'tiles_wall', 'FloorAndGround', false)
     this.addGroupFromTiled('Objects', 'office', 'Modern_Office_Black_Shadow', false)
@@ -146,7 +186,7 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.overlap(
       this.playerSelector,
-      [chairs, computers, whiteboards, vendingMachines],
+      [chairs, computers, whiteboards, vendingMachines, meetingRooms],
       this.handleItemSelectorOverlap,
       undefined,
       this
@@ -263,6 +303,9 @@ export default class Game extends Phaser.Scene {
     } else if (itemType === ItemType.WHITEBOARD) {
       const whiteboard = this.whiteboardMap.get(itemId)
       whiteboard?.addCurrentUser(playerId)
+    } else if (itemType === ItemType.MEETINGROOM) {
+      const meetingRoom = this.meetingRoomItems.get(itemId)
+      meetingRoom?.addCurrentUser(playerId)
     }
   }
 
@@ -273,6 +316,9 @@ export default class Game extends Phaser.Scene {
     } else if (itemType === ItemType.WHITEBOARD) {
       const whiteboard = this.whiteboardMap.get(itemId)
       whiteboard?.removeCurrentUser(playerId)
+    } else if (itemType === ItemType.MEETINGROOM) {
+      const meetingRoom = this.meetingRoomItems.get(itemId)
+      meetingRoom?.removeCurrentUser(playerId)
     }
   }
 
@@ -285,6 +331,12 @@ export default class Game extends Phaser.Scene {
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
+      
+      // Log player coordinates every second
+      if (!this.lastLogTime || t - this.lastLogTime > 1000) {
+        console.log(`Player position: x=${Math.round(this.myPlayer.x)}, y=${Math.round(this.myPlayer.y)}`)
+        this.lastLogTime = t
+      }
     }
   }
 }

@@ -5,6 +5,7 @@ import {
   IComputer,
   IWhiteboard,
   IChatMessage,
+  IMeetingRoom,
 } from '../../../types/IOfficeState'
 
 export class Player extends Schema implements IPlayer {
@@ -31,6 +32,12 @@ export class ChatMessage extends Schema implements IChatMessage {
   @type('string') content = ''
 }
 
+export class MeetingRoom extends Schema implements IMeetingRoom {
+  @type('string') presenterId = ''
+  @type({ set: 'string' }) attendees = new SetSchema<string>()
+  @type('boolean') isActive = false
+}
+
 export class OfficeState extends Schema implements IOfficeState {
   @type({ map: Player })
   players = new MapSchema<Player>()
@@ -43,6 +50,9 @@ export class OfficeState extends Schema implements IOfficeState {
 
   @type([ChatMessage])
   chatMessages = new ArraySchema<ChatMessage>()
+
+  @type({ map: MeetingRoom })
+  meetingRooms = new MapSchema<MeetingRoom>()
 }
 
 export const whiteboardRoomIds = new Set<string>()

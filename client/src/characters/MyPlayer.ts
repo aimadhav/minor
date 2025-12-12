@@ -7,6 +7,7 @@ import Network from '../services/Network'
 import Chair from '../items/Chair'
 import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
+import MeetingRoom from '../items/MeetingRoom'
 
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
@@ -73,6 +74,10 @@ export default class MyPlayer extends Player {
           // hacky and hard-coded, but leaving it as is for now
           const url = 'https://www.buymeacoffee.com/skyoffice'
           openURL(url)
+          break
+        case ItemType.MEETINGROOM:
+          const meetingRoom = item as MeetingRoom
+          meetingRoom.openDialog(this.playerId, network)
           break
       }
     }

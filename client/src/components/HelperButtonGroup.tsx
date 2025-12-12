@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import AIChatbotDialog from './AIChatbotDialog'
 import styled from 'styled-components'
 import Fab from '@mui/material/Fab'
 import IconButton from '@mui/material/IconButton'
@@ -11,8 +12,6 @@ import DarkModeIcon from '@mui/icons-material/DarkMode'
 import CloseIcon from '@mui/icons-material/Close'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
-import GitHubIcon from '@mui/icons-material/GitHub'
-import TwitterIcon from '@mui/icons-material/Twitter'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
 import VideogameAssetOffIcon from '@mui/icons-material/VideogameAssetOff'
 
@@ -62,14 +61,9 @@ const Wrapper = styled.div`
 const ButtonGroup = styled.div`
   display: flex;
   gap: 10px;
-`
-
-const Title = styled.h3`
-  font-size: 24px;
-  color: #eee;
-  text-align: center;
-`
-
+  justify-content: center;
+  align-items: center;
+`;
 const RoomName = styled.div`
   margin: 10px 20px;
   max-width: 460px;
@@ -106,8 +100,7 @@ const StyledFab = styled(Fab)<{ target?: string }>`
 `
 
 export default function HelperButtonGroup() {
-  const [showControlGuide, setShowControlGuide] = useState(false)
-  const [showRoomInfo, setShowRoomInfo] = useState(false)
+  const [showAIChatbot, setShowAIChatbot] = useState(false)
   const showJoystick = useAppSelector((state) => state.user.showJoystick)
   const backgroundMode = useAppSelector((state) => state.user.backgroundMode)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
@@ -126,106 +119,22 @@ export default function HelperButtonGroup() {
             </StyledFab>
           </Tooltip>
         )}
-        {showRoomInfo && (
-          <Wrapper>
-            <IconButton className="close" onClick={() => setShowRoomInfo(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-            <RoomName>
-              <Avatar style={{ background: getColorByString(roomName) }}>
-                {getAvatarString(roomName)}
-              </Avatar>
-              <h3>{roomName}</h3>
-            </RoomName>
-            <RoomDescription>
-              <ArrowRightIcon /> ID: {roomId}
-            </RoomDescription>
-            <RoomDescription>
-              <ArrowRightIcon /> Description: {roomDescription}
-            </RoomDescription>
-            <p className="tip">
-              <LightbulbIcon />
-              Shareable link coming up 😄
-            </p>
-          </Wrapper>
-        )}
-        {showControlGuide && (
-          <Wrapper>
-            <Title>Controls</Title>
-            <IconButton className="close" onClick={() => setShowControlGuide(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-            <ul>
-              <li>
-                <strong>W, A, S, D or arrow keys</strong> to move
-              </li>
-              <li>
-                <strong>E</strong> to sit down (when facing a chair)
-              </li>
-              <li>
-                <strong>R</strong> to use computer to screen share (when facing a computer)
-              </li>
-              <li>
-                <strong>Enter</strong> to open chat
-              </li>
-              <li>
-                <strong>ESC</strong> to close chat
-              </li>
-            </ul>
-            <p className="tip">
-              <LightbulbIcon />
-              Video connection will start if you are close to someone else
-            </p>
-          </Wrapper>
-        )}
+        {/* Room Info and Control Guide popups removed */}
       </div>
       <ButtonGroup>
-        {roomJoined && (
-          <>
-            <Tooltip title="Room Info">
-              <StyledFab
-                size="small"
-                onClick={() => {
-                  setShowRoomInfo(!showRoomInfo)
-                  setShowControlGuide(false)
-                }}
-              >
-                <ShareIcon />
-              </StyledFab>
-            </Tooltip>
-            <Tooltip title="Control Guide">
-              <StyledFab
-                size="small"
-                onClick={() => {
-                  setShowControlGuide(!showControlGuide)
-                  setShowRoomInfo(false)
-                }}
-              >
-                <HelpOutlineIcon />
-              </StyledFab>
-            </Tooltip>
-          </>
-        )}
-        <Tooltip title="Visit Our GitHub">
-          <StyledFab
-            size="small"
-            href="https://github.com/kevinshen56714/SkyOffice"
-            target="_blank"
-          >
-            <GitHubIcon />
+        <Tooltip title="AI Chatbot">
+          <StyledFab size="small" color="secondary" onClick={() => setShowAIChatbot(true)}>
+            🤖
           </StyledFab>
         </Tooltip>
-        <Tooltip title="Follow Us on Twitter">
-          <StyledFab size="small" href="https://twitter.com/SkyOfficeApp" target="_blank">
-            <TwitterIcon />
-          </StyledFab>
-        </Tooltip>
+        {/* Room Info and Control Guide buttons removed */}
         <Tooltip title="Switch Background Theme">
           <StyledFab size="small" onClick={() => dispatch(toggleBackgroundMode())}>
             {backgroundMode === BackgroundMode.DAY ? <DarkModeIcon /> : <LightModeIcon />}
           </StyledFab>
         </Tooltip>
       </ButtonGroup>
+      <AIChatbotDialog open={showAIChatbot} onClose={() => setShowAIChatbot(false)} />
     </Backdrop>
   )
 }
