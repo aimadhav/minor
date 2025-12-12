@@ -39,7 +39,7 @@ export default class MeetingRoom extends Item {
     if (meetingState.presenterId && !meetingState.meetingRoomDialogOpen) {
       this.setDialogBox('Press R to view presentation')
     } else if (this.currentUsers.size === 0) {
-      this.setDialogBox('Press R to enter meeting room')
+      this.setDialogBox('Press R to enter meeting')
     } else {
       this.setDialogBox('Press R to join meeting')
     }
