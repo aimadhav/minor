@@ -264,10 +264,10 @@ const SendButton = styled(IconButton)<{ disabled?: boolean }>`
 
 // Get the API URL based on environment
 const getApiUrl = () => {
-  if (window.location.hostname === 'localhost') {
-    return 'http://localhost:3005';
-  }
-  return '';
+  // Always use the same host as the current page, but on port 3005 for the API server
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  return `${protocol}//${hostname}:3005`;
 };
 
 const formatTime = (date: Date) => {
