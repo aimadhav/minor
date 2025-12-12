@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard, IMeetingRoom } from '../../../types/IOfficeState'
+import { IComputer, IOfficeState, IPlayer, IWhiteboard, IMeetingRoom, IChatMessage } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
@@ -188,8 +188,19 @@ export default class Network {
     this.room.onMessage(
       Message.START_PRESENTATION,
       (data: { meetingRoomId: string; presenterId: string; attendees?: string[] }) => {
-        store.dispatch(presentationStarted({ presenterId: data.presenterId }))
+        store.dispatch(presentationStarted({ presenterId: data.presenterId, meetingRoomId: data.meetingRoomId }))
         phaserEvents.emit(Event.PRESENTATION_STARTED, data.meetingRoomId, data.presenterId, data.attendees)
+        
+        // Add chat notification for presentation start (for attendees only)
+        if (data.presenterId !== this.mySessionId) {
+          const playerNameMap = store.getState().user.playerNameMap
+          const presenterName = playerNameMap.get(data.presenterId) || 'Someone'
+          store.dispatch(pushChatMessage({
+            author: 'System',
+            content: `📺 ${presenterName} started a presentation in the meeting room!`,
+            createdAt: Date.now(),
+          } as IChatMessage))
+        }
       }
     )
 
@@ -197,6 +208,13 @@ export default class Network {
     this.room.onMessage(Message.STOP_PRESENTATION, (data: { meetingRoomId: string }) => {
       store.dispatch(presentationStopped())
       phaserEvents.emit(Event.PRESENTATION_STOPPED, data.meetingRoomId)
+      
+      // Add chat notification for presentation stop
+      store.dispatch(pushChatMessage({
+        author: 'System',
+        content: `📺 The presentation has ended.`,
+        createdAt: Date.now(),
+      } as IChatMessage))
     })
 
     // WebRTC signaling - receive offer from presenter

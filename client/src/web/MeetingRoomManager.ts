@@ -27,13 +27,23 @@ export default class MeetingRoomManager {
 
     // Handle incoming calls (for attendees receiving presenter stream)
     this.myPeer.on('call', (call) => {
+      console.log(`Received incoming call from: ${call.peer}`)
       call.answer()
       call.on('stream', (presenterVideoStream) => {
+        console.log(`Received presenter stream from: ${call.peer}`)
         store.dispatch(setPresenterStream(presenterVideoStream))
       })
       call.on('close', () => {
+        console.log(`Call closed from: ${call.peer}`)
         store.dispatch(setPresenterStream(null))
       })
+      call.on('error', (err) => {
+        console.error(`Call error from ${call.peer}:`, err)
+      })
+    })
+    
+    this.myPeer.on('open', (id) => {
+      console.log(`PeerJS connection opened with ID: ${id}`)
     })
 
     // Listen for new attendees joining (for presenter to call them)
@@ -100,11 +110,12 @@ export default class MeetingRoomManager {
       store.dispatch(startPresenting())
 
       // Notify server that we're starting presentation
+      // The server will respond with the list of attendees via PRESENTATION_STARTED event
       const game = phaserGame.scene.keys.game as Game
       game.network.startPresentation(this.meetingRoomId)
-
-      // Get the list of current attendees from the meeting room and call them
-      this.callAllAttendees()
+      
+      console.log('Presentation started, waiting for attendee list from server...')
+      // Note: callAllAttendees will be triggered by onPresentationStarted when server responds with attendee list
     } catch (err) {
       console.error('Failed to start screen share:', err)
     }
@@ -150,16 +161,32 @@ export default class MeetingRoomManager {
   }
 
   private callUser(userId: string) {
-    if (!this.myStream || userId === this.myUserId) return
+    if (!this.myStream || userId === this.myUserId) {
+      console.log(`callUser skipped: myStream=${!!this.myStream}, userId=${userId}, myUserId=${this.myUserId}`)
+      return
+    }
 
     const sanitizedId = this.makeId(userId)
-    const call = this.myPeer.call(sanitizedId, this.myStream)
+    console.log(`Calling user ${userId} with peer ID: ${sanitizedId}`)
     
-    if (call) {
-      this.peerConnections.set(userId, call)
-      call.on('close', () => {
-        this.peerConnections.delete(userId)
-      })
+    try {
+      const call = this.myPeer.call(sanitizedId, this.myStream)
+      
+      if (call) {
+        console.log(`Call initiated to ${sanitizedId}`)
+        this.peerConnections.set(userId, call)
+        call.on('close', () => {
+          console.log(`Call closed with ${userId}`)
+          this.peerConnections.delete(userId)
+        })
+        call.on('error', (err) => {
+          console.error(`Call error with ${userId}:`, err)
+        })
+      } else {
+        console.log(`Call to ${sanitizedId} returned null`)
+      }
+    } catch (err) {
+      console.error(`Error calling ${userId}:`, err)
     }
   }
 
@@ -177,20 +204,32 @@ export default class MeetingRoomManager {
   // Called when a presentation starts and I'm an attendee (not the presenter)
   // The presenter will call me, so I just need to be ready to receive
   private onPresentationStarted(meetingRoomId: string, presenterId: string, attendees?: string[]) {
-    if (meetingRoomId !== this.meetingRoomId) return
+    console.log(`onPresentationStarted: roomId=${meetingRoomId}, presenterId=${presenterId}, myUserId=${this.myUserId}, attendees=`, attendees)
     
-    // If I'm the presenter and received attendee list, call all of them
-    if (presenterId === this.myUserId && attendees && attendees.length > 0) {
-      console.log(`I'm the presenter, calling ${attendees.length} attendees...`)
-      attendees.forEach((attendeeId) => {
-        this.callUser(attendeeId)
-      })
+    if (meetingRoomId !== this.meetingRoomId) {
+      console.log('Ignoring - different meeting room')
       return
     }
     
-    if (presenterId === this.myUserId) return // I'm the presenter, don't need to connect to myself
+    // If I'm the presenter and received attendee list, call all of them
+    if (presenterId === this.myUserId && attendees && attendees.length > 0) {
+      console.log(`I'm the presenter, calling ${attendees.length} attendees:`, attendees)
+      // Wait a bit for peer connections to be ready
+      setTimeout(() => {
+        attendees.forEach((attendeeId) => {
+          console.log(`Calling attendee: ${attendeeId}`)
+          this.callUser(attendeeId)
+        })
+      }, 500)
+      return
+    }
     
-    console.log(`Presentation started by ${presenterId}, waiting for incoming call...`)
+    if (presenterId === this.myUserId) {
+      console.log('I am the presenter but no attendees in list')
+      return
+    }
+    
+    console.log(`Presentation started by ${presenterId}, I'm an attendee waiting for incoming call...`)
     // The presenter will call all attendees, we just need to be ready (handled in constructor's myPeer.on('call'))
   }
 

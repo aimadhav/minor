@@ -172,6 +172,11 @@ export default function MeetingRoomDialog() {
 
   useEffect(() => {
     if (meetingRoomId && mySessionId) {
+      // Join the meeting room on the server
+      const game = phaserGame.scene.keys.game as Game
+      game.network.joinMeetingRoom(meetingRoomId)
+      
+      // Create the MeetingRoomManager for WebRTC
       const manager = new MeetingRoomManager(mySessionId, meetingRoomId)
       manager.onOpen()
       setMeetingRoomManager(manager)

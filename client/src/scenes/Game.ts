@@ -21,6 +21,7 @@ import { ItemType } from '../../../types/Items'
 
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
+import { leaveMeetingRoomZone } from '../stores/MeetingRoomStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 
 export default class Game extends Phaser.Scene {
@@ -331,6 +332,16 @@ export default class Game extends Phaser.Scene {
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
+      
+      // Check if player left meeting room zone
+      const meetingState = store.getState().meetingRoom
+      if (meetingState.inMeetingRoomZone) {
+        const selectedItem = this.playerSelector.selectedItem
+        // If no item selected or not a meeting room, player left the zone
+        if (!selectedItem || selectedItem.itemType !== ItemType.MEETINGROOM) {
+          store.dispatch(leaveMeetingRoomZone())
+        }
+      }
       
       // Log player coordinates every second
       if (!this.lastLogTime || t - this.lastLogTime > 1000) {

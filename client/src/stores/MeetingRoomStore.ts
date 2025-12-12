@@ -10,6 +10,8 @@ interface MeetingRoomState {
   presenterStream: MediaStream | null
   myStream: MediaStream | null
   attendeeCount: number
+  inMeetingRoomZone: boolean
+  currentZoneMeetingRoomId: string | null
 }
 
 const initialState: MeetingRoomState = {
@@ -20,6 +22,8 @@ const initialState: MeetingRoomState = {
   presenterStream: null,
   myStream: null,
   attendeeCount: 0,
+  inMeetingRoomZone: false,
+  currentZoneMeetingRoomId: null,
 }
 
 export const meetingRoomSlice = createSlice({
@@ -73,12 +77,35 @@ export const meetingRoomSlice = createSlice({
     setAttendeeCount: (state, action: PayloadAction<number>) => {
       state.attendeeCount = action.payload
     },
-    presentationStarted: (state, action: PayloadAction<{ presenterId: string }>) => {
+    presentationStarted: (state, action: PayloadAction<{ presenterId: string; meetingRoomId?: string }>) => {
       state.presenterId = action.payload.presenterId
+      // Auto-open dialog if user is in the meeting room zone and not already open
+      if (state.inMeetingRoomZone && !state.meetingRoomDialogOpen) {
+        const game = phaserGame.scene.keys.game as Game
+        game.disableKeys()
+        state.meetingRoomDialogOpen = true
+        // Use the current zone's meeting room ID if not provided
+        state.meetingRoomId = action.payload.meetingRoomId || state.currentZoneMeetingRoomId
+      }
     },
     presentationStopped: (state) => {
       state.presenterId = null
       state.presenterStream = null
+    },
+    enterMeetingRoomZone: (state, action: PayloadAction<{ meetingRoomId: string }>) => {
+      state.inMeetingRoomZone = true
+      state.currentZoneMeetingRoomId = action.payload.meetingRoomId
+      // If there's an active presentation and dialog is not open, auto-open it
+      if (state.presenterId && !state.meetingRoomDialogOpen) {
+        const game = phaserGame.scene.keys.game as Game
+        game.disableKeys()
+        state.meetingRoomDialogOpen = true
+        state.meetingRoomId = action.payload.meetingRoomId
+      }
+    },
+    leaveMeetingRoomZone: (state) => {
+      state.inMeetingRoomZone = false
+      state.currentZoneMeetingRoomId = null
     },
   },
 })
@@ -94,6 +121,8 @@ export const {
   setAttendeeCount,
   presentationStarted,
   presentationStopped,
+  enterMeetingRoomZone,
+  leaveMeetingRoomZone,
 } = meetingRoomSlice.actions
 
 export default meetingRoomSlice.reducer

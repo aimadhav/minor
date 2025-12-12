@@ -2,7 +2,7 @@ import { ItemType } from '../../../types/Items'
 import store from '../stores'
 import Item from './Item'
 import Network from '../services/Network'
-import { openMeetingRoomDialog } from '../stores/MeetingRoomStore'
+import { openMeetingRoomDialog, enterMeetingRoomZone } from '../stores/MeetingRoomStore'
 
 export default class MeetingRoom extends Item {
   id?: string
@@ -26,7 +26,19 @@ export default class MeetingRoom extends Item {
   }
 
   onOverlapDialog() {
-    if (this.currentUsers.size === 0) {
+    // Track that player is in the meeting room zone
+    if (this.id) {
+      const state = store.getState().meetingRoom
+      if (!state.inMeetingRoomZone || state.currentZoneMeetingRoomId !== this.id) {
+        store.dispatch(enterMeetingRoomZone({ meetingRoomId: this.id }))
+      }
+    }
+    
+    // Check if there's an active presentation
+    const meetingState = store.getState().meetingRoom
+    if (meetingState.presenterId && !meetingState.meetingRoomDialogOpen) {
+      this.setDialogBox('Press R to view presentation')
+    } else if (this.currentUsers.size === 0) {
       this.setDialogBox('Press R to enter meeting room')
     } else {
       this.setDialogBox('Press R to join meeting')
@@ -48,6 +60,6 @@ export default class MeetingRoom extends Item {
   openDialog(playerId: string, network: Network) {
     if (!this.id) return
     store.dispatch(openMeetingRoomDialog({ meetingRoomId: this.id }))
-    network.joinMeetingRoom(this.id)
+    // Note: joinMeetingRoom is called in MeetingRoomDialog's useEffect
   }
 }
