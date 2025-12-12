@@ -253,6 +253,22 @@ export class SkyOffice extends Room<OfficeState> {
       }
     })
 
+    // when an attendee's PeerJS is ready to receive calls (for late joiners)
+    this.onMessage(Message.ATTENDEE_READY, (client, message: { meetingRoomId: string }) => {
+      const meetingRoom = this.state.meetingRooms.get(message.meetingRoomId)
+      if (meetingRoom && meetingRoom.isActive && meetingRoom.presenterId) {
+        // Notify the presenter to call this attendee
+        this.clients.forEach((cli) => {
+          if (cli.sessionId === meetingRoom.presenterId) {
+            cli.send(Message.CALL_ATTENDEE, {
+              meetingRoomId: message.meetingRoomId,
+              attendeeId: client.sessionId,
+            })
+          }
+        })
+      }
+    })
+
     // WebRTC signaling for presentation - forward offer from presenter to attendee
     this.onMessage(
       Message.PRESENTER_OFFER,

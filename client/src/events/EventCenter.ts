@@ -22,4 +22,5 @@ export enum Event {
   PRESENTER_ICE_CANDIDATE_RECEIVED = 'presenter-ice-candidate-received',
   MEETING_ROOM_ATTENDEE_ADDED = 'meeting-room-attendee-added',
   MEETING_ROOM_ATTENDEE_REMOVED = 'meeting-room-attendee-removed',
+  CALL_ATTENDEE = 'call-attendee',  // Presenter receives this to call a late-joining attendee
 }

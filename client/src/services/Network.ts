@@ -217,6 +217,14 @@ export default class Network {
       } as IChatMessage))
     })
 
+    // when presenter is told to call a specific attendee (late joiner)
+    this.room.onMessage(
+      Message.CALL_ATTENDEE,
+      (data: { meetingRoomId: string; attendeeId: string }) => {
+        phaserEvents.emit(Event.CALL_ATTENDEE, data.meetingRoomId, data.attendeeId)
+      }
+    )
+
     // WebRTC signaling - receive offer from presenter
     this.room.onMessage(
       Message.PRESENTER_OFFER,
@@ -370,6 +378,10 @@ export default class Network {
 
   stopPresentation(meetingRoomId: string) {
     this.room?.send(Message.STOP_PRESENTATION, { meetingRoomId })
+  }
+
+  attendeeReady(meetingRoomId: string) {
+    this.room?.send(Message.ATTENDEE_READY, { meetingRoomId })
   }
 
   sendPresenterOffer(meetingRoomId: string, targetId: string, offer: any) {

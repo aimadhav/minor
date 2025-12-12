@@ -16,6 +16,8 @@ export enum Message {
   LEAVE_MEETING_ROOM,
   START_PRESENTATION,
   STOP_PRESENTATION,
+  ATTENDEE_READY,  // When attendee's PeerJS is ready to receive calls
+  CALL_ATTENDEE,   // Server tells presenter to call a specific attendee
   PRESENTER_OFFER,
   PRESENTER_ANSWER,
   PRESENTER_ICE_CANDIDATE,

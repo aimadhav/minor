@@ -44,6 +44,13 @@ export default class MeetingRoomManager {
     
     this.myPeer.on('open', (id) => {
       console.log(`PeerJS connection opened with ID: ${id}`)
+      // If there's already an active presentation and I'm not the presenter, notify server I'm ready
+      const meetingState = store.getState().meetingRoom
+      if (meetingState.presenterId && meetingState.presenterId !== this.myUserId) {
+        console.log('Active presentation detected, notifying server that I am ready to receive stream')
+        const game = phaserGame.scene.keys.game as Game
+        game.network.attendeeReady(this.meetingRoomId)
+      }
     })
 
     // Listen for new attendees joining (for presenter to call them)
@@ -52,6 +59,9 @@ export default class MeetingRoomManager {
     
     // Listen for presentation started (for attendees joining an ongoing presentation)
     phaserEvents.on(Event.PRESENTATION_STARTED, this.onPresentationStarted, this)
+    
+    // Listen for server telling presenter to call a specific attendee
+    phaserEvents.on(Event.CALL_ATTENDEE, this.onCallAttendee, this)
   }
 
   // PeerJS throws invalid_id error if it contains some characters such as that colyseus generates.
@@ -76,6 +86,7 @@ export default class MeetingRoomManager {
     phaserEvents.off(Event.MEETING_ROOM_ATTENDEE_ADDED, this.onAttendeeAdded, this)
     phaserEvents.off(Event.MEETING_ROOM_ATTENDEE_REMOVED, this.onAttendeeRemoved, this)
     phaserEvents.off(Event.PRESENTATION_STARTED, this.onPresentationStarted, this)
+    phaserEvents.off(Event.CALL_ATTENDEE, this.onCallAttendee, this)
   }
 
   async startPresentation() {
@@ -199,6 +210,24 @@ export default class MeetingRoomManager {
 
   private onAttendeeRemoved(meetingRoomId: string) {
     // Handle attendee removal if needed
+  }
+
+  // Called when the server tells the presenter to call a specific attendee (late joiner)
+  private onCallAttendee(meetingRoomId: string, attendeeId: string) {
+    console.log(`onCallAttendee: roomId=${meetingRoomId}, attendeeId=${attendeeId}, isPresenter=${this.isPresenter}`)
+    
+    if (meetingRoomId !== this.meetingRoomId) {
+      console.log('Ignoring - different meeting room')
+      return
+    }
+    
+    if (!this.isPresenter || !this.myStream) {
+      console.log('Ignoring - I am not the presenter or have no stream')
+      return
+    }
+    
+    console.log(`Calling late-joining attendee: ${attendeeId}`)
+    this.callUser(attendeeId)
   }
 
   // Called when a presentation starts and I'm an attendee (not the presenter)
